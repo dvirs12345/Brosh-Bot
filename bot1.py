@@ -1,21 +1,39 @@
-# Author - Dvir Sadon
+# Author - Dvir Sadon & Stav Byevsky (At least 1 line)
 import discord
-import random
 from discord.ext import commands
-from discord import FFmpegPCMAudio
+import re
+import os
+from dotenv import load_dotenv
+from exceptions import NoRegexMatchException, RoleNotFoundException, NewcomerRoleNotFoundException
+load_dotenv()
 
+TOKEN = os.environ.get('DISCORD_TOKEN')
+WELCOME_CHANNEL_NAME = "welcome"
+NEWCOMER_ROLE_NAME = "מחוסר צוות"
 
-TOKEN = "ODg5ODQ3MDk5OTIxOTMyMzEw.YUnMsQ.ktgnoV3yt55Qy6oIjF5LSZsUQ4c"
-
-
-bot = commands.Bot(command_prefix='!')
+intents = discord.Intents.default()
+intents.message_content = True
+intents.presences = True
+intents.members = True
+bot = commands.Bot(intents=intents, command_prefix='!')
 
 
 @bot.event
 async def on_message(message):
-    print(message.content)
+    await startswith_commands(message)
 
     await bot.process_commands(message)
+
+
+@bot.event
+async def on_member_join(member:  discord.Member):
+    print("Hello current roles for " + member.name + ": " + ', '.join(member.roles))
+    newcomer_role = discord.utils.get(member.guild.roles, name=NEWCOMER_ROLE_NAME)
+    if newcomer_role is None:
+        print("Bruh where newcomer role")
+        return
+    await member.add_roles(newcomer_role)
+    print("And now: " + ', '.join(member.roles))
 
 
 @bot.event
@@ -29,58 +47,8 @@ async def hello(ctx):
 
 
 @bot.command(name="קאדר")
-async def bruh(ctx):
+async def kader(ctx):
     await ctx.send("קאדרים עושים ביחד")
-
-
-@bot.command(name="random")
-async def random_func(ctx):
-    args = ctx.message.content.split(" ")[1::]
-    if len(args) > 2 or len(args) <= 0:
-        return
-    elif len(args) == 1:
-        await ctx.send(str(random.randint(0, int(args[0]))))
-    else:
-        await ctx.send(str(random.randint(int(args[0]), int(args[1]))))
-
-
-@bot.command(name="snail")
-async def snail(ctx):
-    username = str(ctx.message.author).split("#")[0]
-    if snails.snail_exists(username):
-        await ctx.send(snails.get_snail_by_owner(username).toString())
-    else:
-        # Create new snail
-        mySnail = Snail("Default", username)
-        snails.add_snail(mySnail)
-        await ctx.send("New snail was created")
-
-
-@bot.command(name="setname")
-async def setname(ctx, arg):
-    snails.set_name(str(ctx.message.author).split("#")[0], arg)
-
-
-@bot.command(name="race")
-async def race(ctx):
-    args = ctx.message.content.split(" ")[1::]
-    if args:
-        username = str(ctx.message.author).split("#")[0]
-        myrace = make_race(args, username)
-        myrace.simulate_game()
-        results = myrace.get_leaderboard()
-        await ctx.send(get_race_results_to_display(results))
-        add_race_exp(results)
-
-
-@bot.command(name="ping")
-async def ping(ctx):
-    ctx.send("pong")
-
-
-@bot.command(name="pong")
-async def pong(ctx):
-    ctx.send("ping")
 
 
 @bot.command(name="vcjoin")
@@ -102,41 +70,51 @@ async def leave(ctx):
 @bot.command(name="korn")
 async def korn(ctx):
     if ctx.author.voice:
-        if not str(ctx.message.author).split("#")[0] == "SBCPackers":
+        if not str(ctx.message.author).split("#")[0] == "":
             voice = await ctx.message.author.voice.channel.connect()
-            source = FFmpegPCMAudio('yada_eghh.wav')
+            source = discord.FFmpegPCMAudio('yada_eghh.wav')
             player = voice.play(source)
 
-        else:
-            await ctx.send("Fuck off palomo")
-    else:
-        await ctx.send("You are not in a voice channel")
+
+async def startswith_commands(message: discord.Message):
+    if message.author.bot \
+            or message.channel.name != WELCOME_CHANNEL_NAME \
+            or len(message.author.roles) >= 10:
+        return
+
+    try:
+        name, team = get_credentials_from_message(message.content)
+
+        author = message.author
+        team_role = discord.utils.get(author.guild.roles, name="צוות" + " " + str(team))
+        newcomer_role = discord.utils.get(author.guild.roles, name=NEWCOMER_ROLE_NAME)
+        if team_role is None:
+            raise RoleNotFoundException
+        if newcomer_role is None:
+            raise NewcomerRoleNotFoundException
+
+        await author.edit(nick=name)
+        await author.add_roles(team_role)
+        if newcomer_role in author.roles:
+            await author.remove_roles(newcomer_role)
+        await message.delete()
+    except NoRegexMatchException:
+        await message.reply("הודעה לא תקינה")
+    except RoleNotFoundException:
+        await message.reply("צוות לא תקין")
+    except NewcomerRoleNotFoundException:
+        print("Bruh where newcomer role")
+        await message.reply("תקלה, אנא נסו שנית")
 
 
-def make_race(args, owner):
-    race_snails = [snails.get_snail_by_owner(owner)]
-    for i in args:
-        race_snails.append(snails.get_snail_by_owner(i))
+def get_credentials_from_message(str1):
+    match = re.match("(.+ .+) ([0-9]+)", str1)
+    if match is None or len(match.groups()) != 2:
+        raise NoRegexMatchException
 
-    return Race(race_snails)
-
-
-def get_race_results_to_display(results):
-    to_display = ""
-    print(results)
-    for i in range(len(results)):
-        to_display += (str(i + 1) + ". " + str(results[i][0]) + ": " + str(results[i][-1]) + "\n")
-
-    return to_display
+    name = match.group(1)
+    team = match.group(2)
+    return name, team
 
 
-def add_race_exp(results):
-    for i in range(len(results)):
-        current_snail = snails.get_snail_by_owner(results[i][0])
-        current_snail.update_exp(len(results) - i - 1)
-        snails.update_level(current_snail.update_exp(len(results) - i - 1) - current_snail.get_level())
-        snails.update_exp(owner=results[i][0], new_exp=len(results) - i - 1)
-
-
-# client.run(TOKEN)
 bot.run(TOKEN)
