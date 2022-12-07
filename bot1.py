@@ -78,6 +78,7 @@ async def korn(ctx):
 
 async def startswith_commands(message: discord.Message):
     if message.author.bot \
+            or not isinstance(message.channel, discord.TextChannel) \
             or message.channel.name != WELCOME_CHANNEL_NAME \
             or len(message.author.roles) > 2:
         return
