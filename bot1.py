@@ -5,10 +5,11 @@ import re
 import os
 from dotenv import load_dotenv
 from exceptions import NoRegexMatchException, RoleNotFoundException, NewcomerRoleNotFoundException
+
 load_dotenv()
 
 TOKEN = os.environ.get('DISCORD_TOKEN')
-WELCOME_CHANNEL_NAME = "welcome"
+WELCOME_CHANNEL_NAME = "הרשמה"
 NEWCOMER_ROLE_NAME = "מחוסר צוות"
 
 intents = discord.Intents.default()
@@ -26,24 +27,23 @@ async def on_message(message):
 
 
 @bot.event
-async def on_member_join(member:  discord.Member):
-    print("Hello current roles for " + member.name + ": " + ', '.join(member.roles))
+async def on_member_join(member: discord.Member):
     newcomer_role = discord.utils.get(member.guild.roles, name=NEWCOMER_ROLE_NAME)
     if newcomer_role is None:
         print("Bruh where newcomer role")
         return
     await member.add_roles(newcomer_role)
-    print("And now: " + ', '.join(member.roles))
+    await member.send("היי, {} :)\n"
+                      "ברוכים הבאים לשרת דיסקורד של גדוד ברוש!\n"
+                      "כדי להירשם, כנסו לשרת וכתבו בערוץ \"{}\" את שמכם המלא ואת מספר הצוות שלכם כך \"<שם מלא> <מספר צוות>\", למשל:"
+                      "\n דביר סעדונוביץ' 22"
+                      "\n\nתודה ❤️"
+                      .format(member.name, WELCOME_CHANNEL_NAME))
 
 
 @bot.event
 async def on_ready():
     print('Logged in as {0.user}'.format(bot))
-
-
-@bot.command(name="hello")
-async def hello(ctx):
-    await ctx.send("Hello there " + str(ctx.message.author).split("#")[0])
 
 
 @bot.command(name="קאדר")
@@ -79,7 +79,7 @@ async def korn(ctx):
 async def startswith_commands(message: discord.Message):
     if message.author.bot \
             or message.channel.name != WELCOME_CHANNEL_NAME \
-            or len(message.author.roles) >= 10:
+            or len(message.author.roles) > 2:
         return
 
     try:
@@ -97,7 +97,20 @@ async def startswith_commands(message: discord.Message):
         await author.add_roles(team_role)
         if newcomer_role in author.roles:
             await author.remove_roles(newcomer_role)
-        await message.delete()
+
+        messages_to_delete = []
+        channel = message.channel
+        async for message_in_channel in channel.history(limit=200):
+            is_message_reply_to_author = message_in_channel.reference is not None \
+                                         and (await channel.fetch_message(message_in_channel.reference.message_id)) \
+                                             .author.id == author.id
+            if message_in_channel.author.id == author.id \
+                    or is_message_reply_to_author:
+                messages_to_delete.append(message_in_channel)
+        await channel.delete_messages(messages_to_delete)
+
+        await author.send("היי {}, נרשמת בהצלחה לשרת, כעת יש לך גישה לכלל הערוצים של הפלוגה ושל צוות {}!"
+                          .format(name, team))
     except NoRegexMatchException:
         await message.reply("הודעה לא תקינה")
     except RoleNotFoundException:
