@@ -102,9 +102,16 @@ async def startswith_commands(message: discord.Message):
         messages_to_delete = []
         channel = message.channel
         async for message_in_channel in channel.history(limit=200):
-            is_message_reply_to_author = message_in_channel.reference is not None \
-                                         and (await channel.fetch_message(message_in_channel.reference.message_id)) \
-                                             .author.id == author.id
+            if message_in_channel.reference is None or message_in_channel.reference.message_id is None:
+                continue
+            referenced_message = None
+            try:
+                referenced_message = await channel.fetch_message(message_in_channel.reference.message_id)
+            except Exception as exception:
+                print("Message fetch error (id: {}) - {}".format(message_in_channel.reference.message_id, exception))
+                continue
+
+            is_message_reply_to_author = referenced_message.author.id == author.id
             if message_in_channel.author.id == author.id \
                     or is_message_reply_to_author:
                 messages_to_delete.append(message_in_channel)
@@ -128,6 +135,7 @@ def get_credentials_from_message(str1):
 
     name = match.group(1)
     team = match.group(2)
+    name = name.replace("צוות ", "")
     return name, team
 
 
