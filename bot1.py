@@ -21,6 +21,10 @@ bot = commands.Bot(intents=intents, command_prefix='!')
 
 @bot.event
 async def on_message(message):
+    if not message.author.bot \
+            or not isinstance(message.channel, discord.TextChannel):
+        if "קאדר" in message.content:
+            await message.channel.send("קאדרים עושים ביחד")
     await startswith_commands(message)
 
     await bot.process_commands(message)
@@ -46,9 +50,9 @@ async def on_ready():
     print('Logged in as {0.user}'.format(bot))
 
 
-@bot.command(name="קאדר")
-async def kader(ctx):
-    await ctx.send("קאדרים עושים ביחד")
+# @bot.command(name="קאדר")
+# async def kader(ctx):
+#     await ctx.send("קאדרים עושים ביחד")
 
 
 @bot.command(name="vcjoin")
